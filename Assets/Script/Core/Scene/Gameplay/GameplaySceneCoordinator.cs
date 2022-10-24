@@ -5,7 +5,6 @@ using Edu.CrossyBox.Player;
 using Edu.CrossyBox.Environment;
 using Edu.CrossyBox.Interaction;
 using System.Collections.Generic;
-using UnityEngine.UIElements;
 
 namespace Edu.CrossyBox.Core
 {
@@ -25,6 +24,9 @@ namespace Edu.CrossyBox.Core
         [SerializeField]
         private PlayerController _playerController = default;
 
+        [SerializeField]
+        private GameplayAudioController _gameplayAudioController = default;
+
         private readonly InputHandler _inputHandler = new();
 
         private readonly ScoreController _scoreController = new();
@@ -34,13 +36,15 @@ namespace Edu.CrossyBox.Core
         private void Awake()
         {
             _carHandler.OnAwake();
-            _groundHandler.OnAwake();
-            _groundHandler.OnSpawnRoad += position =>
+            _gameplayUiController.OnAwake();
+            StartCoroutine(_gameplayAudioController.PlaySfxInRandom());
+            _groundHandler.OnAwake(position =>
             {
                 foreach (var item in position)
                     StartCoroutine(_carHandler.AutoSpawnCar(item));
-            };
+            });
 
+            _playerController.gameObject.SetActive(true);
             _playerController.SetPlayerCallback(playerZPosition =>
             {
                 if(_scoreController.Score < playerZPosition)
@@ -49,6 +53,11 @@ namespace Edu.CrossyBox.Core
                     _groundHandler.IncreaseBoundary();
                     _gameplayUiController.UpdateScoreText(_scoreController.Score);
                 }
+            }, () =>
+            {
+                _inputHandler.Deactive();
+                _scoreController.SaveHighScore();
+                _gameplayUiController.ShowGameOver(_scoreController.Score, _scoreController.GetHighScore());
             });
         }
 
@@ -66,6 +75,7 @@ namespace Edu.CrossyBox.Core
         private void OnDisable()
         {
             _inputHandler.Deactive();
+            StopAllCoroutines();
         }
     }
 }

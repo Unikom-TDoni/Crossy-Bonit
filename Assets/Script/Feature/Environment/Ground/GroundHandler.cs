@@ -11,7 +11,7 @@ namespace Edu.CrossyBox.Environment
     [Serializable]
     public sealed class GroundHandler
     {
-        public event Action<IEnumerable<Vector3>> OnSpawnRoad = default;
+        private Action<IEnumerable<Vector3>> _onSpawnRoad = default;
 
         [SerializeField]
         private GroundSpawner _groundSpawner = default;
@@ -27,10 +27,11 @@ namespace Edu.CrossyBox.Environment
 
         private readonly LinkedList<GroundController> _inGameGround = new();
 
-        public void OnAwake()
+        public void OnAwake(Action<IEnumerable<Vector3>> onSpawnRoad)
         {
             _groundObjPool.Init(_groundSpawner);
-            CreateFirstGround();
+            _onSpawnRoad = onSpawnRoad;
+            InitGround();
         }
 
         public void OnUpdate()
@@ -46,37 +47,36 @@ namespace Edu.CrossyBox.Environment
             _spawnBoundaryZPosition.Min += firstGroundSize;
         }
 
+        private void InitGround()
+        {
+            var lastObj = GetUniqueGroundTypeExcept(GroundTypes.Road);
+            lastObj.transform.position = new Vector3(default, default, _spawnBoundaryZPosition.Min);
+            _inGameGround.AddLast(lastObj);
+            while (lastObj.transform.position.z < 0)
+            {
+                var obj = GetUniqueGroundTypeExcept(GroundTypes.Road);
+                obj.transform.position = new Vector3(default, default, lastObj.transform.position.z + Math.Max(lastObj.Size, obj.Size));
+                _inGameGround.AddLast(obj);
+                lastObj = obj;
+            }
+        }
+
         private void ActiveGround()
         {
             var lastActiveObj = _inGameGround.Last.Value;
             if (lastActiveObj.transform.position.z > _spawnBoundaryZPosition.Max) return;
             var obj = _groundObjPool.ObjectPool.Get();
-            if (lastActiveObj.Types is GroundTypes.Road)
-            {
-                _groundObjPool.ObjectPool.Release(obj);
-                obj = GetUniqueGroundTypeExcept(GroundTypes.Road);
-            }
-            var maxSize = Math.Max(lastActiveObj.Size, obj.Size);
-            obj.transform.position = new Vector3(obj.transform.position.x, default, lastActiveObj.transform.position.z + maxSize);
-            if (obj.Types is GroundTypes.Road) {
-                if (obj.Size == 2)
-                    OnSpawnRoad(new Vector3[] { 
-                        new Vector3(GetRandomXCarSpawnPoint(), default, obj.transform.position.z) 
-                    });
-                else
-                    OnSpawnRoad(new Vector3[] { 
-                        new Vector3(GetRandomXCarSpawnPoint(), default, obj.transform.position.z - 1),
-                        new Vector3(GetRandomXCarSpawnPoint(), default, obj.transform.position.z + 1),
-                    });
-            }
+            if (lastActiveObj.Types is GroundTypes.Road) obj = GetUniqueGroundTypeExcept(GroundTypes.Road);
+            obj.transform.position = new Vector3(default, default, lastActiveObj.transform.position.z + Math.Max(lastActiveObj.Size, obj.Size));
             _inGameGround.AddLast(obj);
+            if (obj.Types is GroundTypes.Road) SpawnCar(obj);
         }
 
         private void DeactiveGrounds()
         {
             foreach (var item in _inGameGround)
             {
-                if(item.transform.position.z < _spawnBoundaryZPosition.Min)
+                if (item.transform.position.z < _spawnBoundaryZPosition.Min)
                 {
                     _groundObjPool.ObjectPool.Release(item);
                     _inGameGround.Remove(item);
@@ -85,13 +85,19 @@ namespace Edu.CrossyBox.Environment
         }
 
         private float GetRandomXCarSpawnPoint() =>
-             Random.value < 0.5f ? _carSpawnPoint.Min : _carSpawnPoint.Max;
+             Random.value < .5f ? _carSpawnPoint.Min : _carSpawnPoint.Max;
 
-        private void CreateFirstGround()
+        private void SpawnCar(GroundController obj)
         {
-            var obj = _groundObjPool.ObjectPool.Get();
-            obj.transform.position = new Vector3(default, default, _spawnBoundaryZPosition.Min);
-            _inGameGround.AddLast(obj);
+            if (obj.Size == 2)
+                _onSpawnRoad(new Vector3[] {
+                        new Vector3(GetRandomXCarSpawnPoint(), default, obj.transform.position.z)
+                    });
+            else
+                _onSpawnRoad(new Vector3[] {
+                        new Vector3(GetRandomXCarSpawnPoint(), default, obj.transform.position.z - 1),
+                        new Vector3(GetRandomXCarSpawnPoint(), default, obj.transform.position.z + 1),
+                    });
         }
 
         private GroundController GetUniqueGroundTypeExcept(GroundTypes types)

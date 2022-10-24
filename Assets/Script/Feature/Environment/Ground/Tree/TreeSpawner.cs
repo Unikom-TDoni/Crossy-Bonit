@@ -63,6 +63,7 @@ namespace Edu.CrossyBox.Environment
         private void CreateObject(Transform holder, ICollection<float> uniquePosition)
         {
             var xPosition = GetRandomXPosition(uniquePosition);
+            if (holder.parent.transform.position.z == 0 && xPosition == 0) return;
             var obj = Object.Instantiate(_model,
                 new Vector3(xPosition, default, default),
                 Quaternion.identity);

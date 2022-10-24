@@ -1,13 +1,18 @@
 using Edu.CrossyBox.Core;
+using Edu.CrossyBox.Environment;
 using System;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.InputSystem.XR;
+using static UnityEditor.FilePathAttribute;
 
 namespace Edu.CrossyBox.Player
 {
     public sealed class PlayerController : MonoBehaviour, GameInputActions.IActorActions
     {
-        private Action<float> PlayerEndMoveCallback = default;
+        private Action DeadCallback = default;
+
+        private Action<float> EndMoveCallback = default;
 
         [SerializeField]
         private float _speed = default;
@@ -36,25 +41,27 @@ namespace Edu.CrossyBox.Player
 
         private void Update()
         {
+            if (_isDead) return;
             var offset = _destination - transform.position;
-            if (offset.magnitude < 0.2f)
+            if (offset.magnitude > .2f)
             {
-                if (_characterController.enabled)
-                {
-                    _characterController.enabled = false;
-                    transform.position = new Vector3(_destination.x, default, _destination.z);
-                    PlayerEndMoveCallback?.Invoke(_destination.z / _moveDestinationMultiplier);
-                }
+                offset = offset.normalized * _speed;
+                _characterController.Move(offset * Time.deltaTime);
             }
             else
             {
+                _characterController.enabled = false;
+                transform.position = _destination;
+                EndMoveCallback?.Invoke(_destination.z / _moveDestinationMultiplier);
                 _characterController.enabled = true;
-                _characterController.Move(_speed * Time.deltaTime * offset.normalized);
             }
         }
 
-        public void SetPlayerCallback(Action<float> playerEndMoveCallback) =>
-            PlayerEndMoveCallback = playerEndMoveCallback;
+        public void SetPlayerCallback(Action<float> playerEndMoveCallback, Action deadCallback)
+        {
+            DeadCallback = deadCallback;
+            EndMoveCallback = playerEndMoveCallback;
+        }
 
         public void OnMovement(InputAction.CallbackContext context)
         {
@@ -72,7 +79,12 @@ namespace Edu.CrossyBox.Player
         private void OnTriggerEnter(Collider collider)
         {
             if (collider.CompareTag(GameManager.Instance.Tags.Car))
+            {
+                transform.localScale = new Vector3(8, 1, 8);
+                DeadCallback();
                 _isDead = true;
+                _animator.enabled = false;
+            }
         }
     }
 }

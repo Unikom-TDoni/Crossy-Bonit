@@ -11,8 +11,11 @@ namespace Edu.CrossyBox.Score
         public void IncreaseScore() =>
             Score++;
 
-        public void SaveScore() =>
-            PlayerPrefs.SetInt(StorageKey, Score);
+        public void SaveHighScore()
+        {
+            if (Score > GetHighScore()) 
+                PlayerPrefs.SetInt(StorageKey, Score);
+        }
 
         public int GetHighScore() =>
             PlayerPrefs.GetInt(StorageKey, default);
